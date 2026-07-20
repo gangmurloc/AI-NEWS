@@ -18,15 +18,18 @@ def _fetch_google_news(query: str) -> list:
 
     articles = []
     for entry in feed.entries:
-        source = entry.source.title if hasattr(entry, "source") else ""
-        published_parsed = entry.get("published_parsed") or time.gmtime(0)
-        articles.append({
-            "title": entry.title.strip(),
-            "link": entry.link,
-            "source": source,
-            "published": entry.get("published", ""),
-            "published_ts": calendar.timegm(published_parsed),
-        })
+        try:
+            source = entry.source.title if hasattr(entry, "source") else ""
+            published_parsed = entry.get("published_parsed") or time.gmtime(0)
+            articles.append({
+                "title": entry.title.strip(),
+                "link": entry.link,
+                "source": source,
+                "published": entry.get("published", ""),
+                "published_ts": calendar.timegm(published_parsed),
+            })
+        except (AttributeError, TypeError):
+            continue  # 항목 하나가 깨져도 나머지는 계속 수집
     return articles
 
 

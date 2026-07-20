@@ -26,11 +26,15 @@ def fetch_hn_stories(query: str) -> list:
 
     articles = []
     for hit in data.get("hits", []):
-        link = hit.get("url") or f"https://news.ycombinator.com/item?id={hit['objectID']}"
+        title = hit.get("title")
+        object_id = hit.get("objectID")
+        if not title or not object_id:
+            continue  # 필수 필드가 빠진 항목 하나 때문에 전체 HN 수집이 죽지 않도록 건너뜀
+        link = hit.get("url") or f"https://news.ycombinator.com/item?id={object_id}"
         articles.append({
-            "title": hit["title"],
+            "title": title,
             "link": link,
-            "source": f"Hacker News ({hit['points']}점, 댓글 {hit['num_comments']}개)",
+            "source": f"Hacker News ({hit.get('points', 0)}점, 댓글 {hit.get('num_comments', 0)}개)",
             "published": hit.get("created_at", ""),
             "published_ts": hit.get("created_at_i", 0),
         })

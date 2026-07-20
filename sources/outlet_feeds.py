@@ -15,17 +15,20 @@ def fetch_outlet_articles() -> list:
         except Exception:
             continue
         for entry in feed.entries:
-            published_parsed = entry.get("published_parsed") or entry.get("updated_parsed")
-            if not published_parsed:
-                continue
-            published_ts = calendar.timegm(published_parsed)
-            if published_ts < cutoff_ts:
-                continue
-            articles.append({
-                "title": entry.title.strip(),
-                "link": entry.link,
-                "source": name,
-                "published": entry.get("published", entry.get("updated", "")),
-                "published_ts": published_ts,
-            })
+            try:
+                published_parsed = entry.get("published_parsed") or entry.get("updated_parsed")
+                if not published_parsed:
+                    continue
+                published_ts = calendar.timegm(published_parsed)
+                if published_ts < cutoff_ts:
+                    continue
+                articles.append({
+                    "title": entry.title.strip(),
+                    "link": entry.link,
+                    "source": name,
+                    "published": entry.get("published", entry.get("updated", "")),
+                    "published_ts": published_ts,
+                })
+            except (AttributeError, TypeError):
+                continue  # 항목 하나가 깨져도 같은 피드의 나머지, 다른 피드는 계속 수집
     return articles
