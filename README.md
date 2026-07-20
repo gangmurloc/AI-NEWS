@@ -1,14 +1,15 @@
 # 📰 AI 데일리 브리핑 봇
 
 매일 관심 주제의 뉴스/핫토픽과 최신 논문을 AI가 정리해서 **텔레그램**으로 보내줍니다.
+**완전 무료** — Gemini 무료 티어 + Google News RSS + arXiv + 텔레그램 + GitHub Actions, 결제수단 등록 없이 동작합니다.
 
 ---
 
-## 필요한 것 3가지 (전부 `.env` 한 곳에만 입력)
+## 필요한 것 3가지 (전부 `.env` 한 곳에만 입력, 전부 무료 발급)
 
 | 항목 | 발급처 |
 |------|--------|
-| `OPENAI_API_KEY` | https://platform.openai.com/api-keys |
+| `GEMINI_API_KEY` | https://aistudio.google.com/apikey (Google 계정만 있으면 무료 발급) |
 | `TELEGRAM_BOT_TOKEN` | 텔레그램에서 `@BotFather` → `/newbot` |
 | `TELEGRAM_CHAT_ID` | 아래 3-2단계에서 자동 확인 |
 
@@ -40,8 +41,9 @@ cp .env.example .env      # 윈도우면: copy .env.example .env
 python get_chat_id.py
 ```
 
-### 4. OpenAI 키 입력
-`.env` 의 `OPENAI_API_KEY` 에 발급받은 키 붙여넣기.
+### 4. Gemini 키 입력
+1. https://aistudio.google.com/apikey 접속 → Google 계정으로 로그인 → **Create API key** (무료, 카드 등록 불필요)
+2. 발급받은 키를 `.env` 의 `GEMINI_API_KEY` 에 붙여넣기
 
 ### 5. 실행
 ```bash
@@ -73,7 +75,7 @@ ARXIV_KEYWORDS = ["large language model", "LLM", "RAG", ...]  # 초록에 포함
    git push -u origin main
    ```
 3. 저장소 → Settings → Secrets and variables → Actions → **New repository secret** 에서
-   `OPENAI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 3개를 등록
+   `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 3개를 등록
 4. 끝. `.github/workflows/daily.yml` 이 매일 한국시간 오전 7시에 자동 실행됩니다.
    (시간 변경: yml 의 `cron` 값 수정, UTC 기준 / Actions 탭에서 "Run workflow"로 수동 테스트 가능)
 
@@ -98,12 +100,14 @@ news_bot/
 ├── summarizer.py        # 논문 요약
 ├── telegram_sender.py   # 텔레그램 전송
 ├── sources/
-│   ├── web_research.py  # 웹 뉴스/이슈 수집
+│   ├── web_research.py  # Google News RSS 뉴스 수집 + Gemini 정리
 │   └── arxiv_papers.py  # 논문 수집
 └── .github/workflows/daily.yml  # 자동 실행 설정
 ```
 
 ## 참고
-- OpenAI의 웹검색 도구(`web_search_preview`)는 API 버전에 따라 이름/사용법이 바뀔 수 있습니다.
-  오류 시 https://platform.openai.com/docs 를 확인하세요. (안 되면 자동으로 일반 생성으로 폴백됩니다.)
-- 웹검색·논문요약은 토큰을 꽤 소모합니다. 주제 수를 늘리면 비용도 늘어납니다.
+- 뉴스는 Google News RSS(무료, 키 불필요)로 수집한 뒤 Gemini가 중복 제거·요약을 해줍니다.
+- Gemini 무료 티어는 분당/일일 호출 횟수 제한이 있습니다. 지금 구조(주제 3개 + 논문 요약, 하루 1번 실행)는
+  무료 한도 안에서 충분히 여유 있게 동작합니다. 주제를 아주 많이 늘리면 한도에 걸릴 수 있으니 유의하세요.
+- 완전 무료 구성: GitHub Actions(무료) + Gemini API(무료 티어) + Google News RSS(무료) + arXiv(무료) + 텔레그램(무료).
+  결제수단 등록이 필요한 곳이 없습니다.

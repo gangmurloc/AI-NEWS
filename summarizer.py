@@ -1,8 +1,8 @@
-"""수집한 논문을 OpenAI로 읽기 쉽게 요약."""
-from openai import OpenAI
+"""수집한 논문을 Gemini(무료 티어)로 읽기 쉽게 요약."""
+from google import genai
 import config
 
-client = OpenAI(api_key=config.OPENAI_API_KEY)
+client = genai.Client(api_key=config.GEMINI_API_KEY)
 
 
 def summarize_papers(papers) -> str:
@@ -21,8 +21,11 @@ def summarize_papers(papers) -> str:
 
 논문 목록:
 {raw}"""
-    resp = client.chat.completions.create(
-        model=config.OPENAI_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return resp.choices[0].message.content
+    try:
+        resp = client.models.generate_content(
+            model=config.GEMINI_MODEL,
+            contents=prompt,
+        )
+        return resp.text
+    except Exception as e:
+        return f"(논문 요약 실패: {e})\n\n원본 목록:\n{raw}"
