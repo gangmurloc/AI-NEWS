@@ -16,8 +16,12 @@ TELEGRAM_FORMAT_RULES = """서식 규칙 (텔레그램 전송용, 반드시 지�
 - 링크는 그냥 URL만 적을 것 (마크다운 링크 문법 [텍스트](URL) 금지)"""
 
 
+# 재시도할 가치가 있는 일시적 오류: 429(할당량 초과), 503(서버 과부하, "나중에 다시 시도" 안내가 붙음)
+RETRYABLE_CODES = (429, 503)
+
+
 def generate(prompt: str, retries: int = 2, base_delay: float = 20.0) -> str:
-    """429(할당량 초과) 발생 시 잠깐 대기 후 재시도. 그래도 실패하면 예외를 그대로 던짐."""
+    """일시적 오류(429/503) 발생 시 잠깐 대기 후 재시도. 그래도 실패하면 예외를 그대로 던짐."""
     last_error = None
     for attempt in range(retries + 1):
         try:
@@ -28,7 +32,7 @@ def generate(prompt: str, retries: int = 2, base_delay: float = 20.0) -> str:
             return resp.text
         except genai_errors.APIError as e:
             last_error = e
-            if getattr(e, "code", None) == 429 and attempt < retries:
+            if getattr(e, "code", None) in RETRYABLE_CODES and attempt < retries:
                 time.sleep(base_delay)
                 continue
             raise

@@ -1,9 +1,18 @@
 """arXiv + OpenAlex + Semantic Scholar를 합쳐서 논문 후보군을 만듦."""
+import re
 import config
 import history
 from sources.arxiv_papers import fetch_arxiv_papers
 from sources.openalex import fetch_papers as fetch_openalex_papers
 from sources.semantic_scholar import fetch_papers as fetch_semantic_scholar_papers
+
+# 한자/한글/키릴 문자가 섞인 제목은 영어가 아닌 것으로 간주하고 제외
+# (OpenAlex는 language:en 필터가 있지만, Semantic Scholar/arXiv는 이런 필터가 없어서 안전망으로 둠)
+_NON_ENGLISH_SCRIPT = re.compile(r"[一-鿿぀-ヿ가-힣Ѐ-ӿ]")
+
+
+def _is_english(title: str) -> bool:
+    return not _NON_ENGLISH_SCRIPT.search(title)
 
 
 def fetch_all_papers() -> list:
@@ -18,7 +27,7 @@ def fetch_all_papers() -> list:
     deduped = []
     for p in papers:
         key = p["title"].strip().lower()
-        if not key or key in seen_titles:
+        if not key or key in seen_titles or not _is_english(p["title"]):
             continue
         seen_titles.add(key)
         deduped.append(p)

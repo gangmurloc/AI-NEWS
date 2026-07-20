@@ -27,7 +27,8 @@ def fetch_papers(query: str) -> list:
         "filter": (
             f"from_publication_date:{since.isoformat()},"
             f"to_publication_date:{today.isoformat()},"
-            "type:article|preprint"
+            "type:article|preprint,"
+            "language:en"
         ),
     }
     url = f"https://api.openalex.org/works?{urllib.parse.urlencode(params)}"

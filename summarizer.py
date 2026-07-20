@@ -28,4 +28,6 @@ def summarize_papers(papers) -> str:
     try:
         return generate(prompt)
     except Exception as e:
-        return f"(논문 요약 실패: {e})\n\n원본 목록:\n{raw}"
+        # Gemini가 실패하면 필터링 전 원본(다국어 포함)을 그대로 보내지 않고, 제목+링크만 간단히
+        title_links = "\n".join(f"- {p['title']} ({p['link']})" for p in papers)
+        return f"(논문 요약 실패: {type(e).__name__} — 잠시 후 다시 시도됩니다)\n\n{title_links}"

@@ -69,4 +69,6 @@ AI 카테고리 기사를 모두 합친 결과라서 '{label}' 주제와 관련 
     try:
         return generate(prompt)
     except Exception as e:
-        return f"({label} 정리 실패: {e})\n\n원본 목록:\n{raw}"
+        # Gemini가 실패하면 관련성/품질 필터링 전 원본을 그대로 보내지 않고, 제목+링크만 간단히
+        title_links = "\n".join(f"- {a['title']} ({a['link']})" for a in articles)
+        return f"({label} 정리 실패: {type(e).__name__} — 잠시 후 다시 시도됩니다)\n\n{title_links}"
