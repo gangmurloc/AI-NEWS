@@ -3,12 +3,11 @@ import urllib.parse
 from datetime import datetime, timedelta, timezone
 import feedparser
 import config
-import history
 
 ARXIV_API = "http://export.arxiv.org/api/query"
 
 
-def fetch_recent_papers():
+def fetch_arxiv_papers() -> list:
     cat_query = " OR ".join(f"cat:{c}" for c in config.ARXIV_CATEGORIES)
     keyword_query = " OR ".join(f'abs:"{k}"' for k in config.ARXIV_KEYWORDS)
     search_query = f"({cat_query}) AND ({keyword_query})"
@@ -21,7 +20,7 @@ def fetch_recent_papers():
     url = f"{ARXIV_API}?{urllib.parse.urlencode(params)}"
     feed = feedparser.parse(url)
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=config.ARXIV_MAX_AGE_DAYS)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=config.PAPER_MAX_AGE_DAYS)
 
     papers = []
     for entry in feed.entries:
@@ -34,4 +33,4 @@ def fetch_recent_papers():
             "link": entry.link,
             "authors": ", ".join(a.name for a in entry.authors[:3]),
         })
-    return history.filter_unsent(papers)
+    return papers

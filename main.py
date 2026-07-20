@@ -3,7 +3,8 @@ from datetime import date
 import config
 import history
 from sources.web_research import fetch_topic_articles, summarize_topic
-from sources.arxiv_papers import fetch_recent_papers
+from sources.outlet_feeds import fetch_outlet_articles
+from sources.papers import fetch_all_papers
 from summarizer import summarize_papers
 from telegram_sender import send_message
 
@@ -15,16 +16,18 @@ def build_digest():
     used_links = []
 
     # 1) 관심 주제별 웹 리서치
+    print("  - 신뢰 매체 RSS 수집 중...")
+    outlet_articles = fetch_outlet_articles()
     for topic in config.TOPICS:
         print(f"  - '{topic['label']}' 검색 중...")
-        articles = fetch_topic_articles(topic["query"])
+        articles = fetch_topic_articles(topic["query"], topic["hn_query"], outlet_articles)
         used_links.extend(articles)
         parts.append(f"\n━━━━━━━━━━━━\n🔎 *{topic['label']}*\n")
         parts.append(summarize_topic(articles, topic["label"]))
 
-    # 2) 최신 논문
+    # 2) 최신 논문 (arXiv + OpenAlex + Semantic Scholar)
     print("  - 논문 수집 중...")
-    papers = fetch_recent_papers()
+    papers = fetch_all_papers()
     used_links.extend(papers)
     parts.append("\n━━━━━━━━━━━━\n📄 *오늘의 논문*\n")
     parts.append(summarize_papers(papers))
