@@ -3,6 +3,7 @@ import urllib.parse
 from datetime import datetime, timedelta, timezone
 import feedparser
 import config
+import history
 
 ARXIV_API = "http://export.arxiv.org/api/query"
 
@@ -33,4 +34,4 @@ def fetch_recent_papers():
             "link": entry.link,
             "authors": ", ".join(a.name for a in entry.authors[:3]),
         })
-    return papers
+    return history.filter_unsent(papers)

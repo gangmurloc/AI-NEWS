@@ -1,19 +1,29 @@
 """Google News RSS(무료, 키 불필요)로 주제별 최신 해외 뉴스를 수집하고 Gemini로 정리."""
+import time
 import urllib.parse
 import feedparser
 import config
+import history
 from gemini_client import generate, TELEGRAM_FORMAT_RULES
 
 
-def _fetch_rss(query: str):
+def fetch_topic_articles(query: str) -> list:
+    """RSS에서 수집 → 최신순 정렬 → 이미 보낸 링크 제외 → 상위 N개."""
     # when:Nd 연산자로 최근 N일 이내 기사만 검색 (Google News 검색 문법)
     full_query = f"{query} when:{config.NEWS_MAX_AGE_DAYS}d"
     params = {"q": full_query, **config.NEWS_LANG}
     url = f"https://news.google.com/rss/search?{urllib.parse.urlencode(params)}"
     feed = feedparser.parse(url)
 
+    # Google News RSS는 관련도순으로 오므로, 최신 기사가 먼저 오도록 날짜순 재정렬
+    entries = sorted(
+        feed.entries,
+        key=lambda e: e.get("published_parsed") or time.gmtime(0),
+        reverse=True,
+    )
+
     articles = []
-    for entry in feed.entries[: config.NEWS_MAX_RESULTS]:
+    for entry in entries:
         source = entry.source.title if hasattr(entry, "source") else ""
         articles.append({
             "title": entry.title.strip(),
@@ -21,13 +31,14 @@ def _fetch_rss(query: str):
             "source": source,
             "published": entry.get("published", ""),
         })
-    return articles
+
+    articles = history.filter_unsent(articles)
+    return articles[: config.NEWS_MAX_RESULTS]
 
 
-def research_topic(query: str, label: str) -> str:
-    articles = _fetch_rss(query)
+def summarize_topic(articles: list, label: str) -> str:
     if not articles:
-        return f"'{label}' 관련 최근 {config.NEWS_MAX_AGE_DAYS}일 이내 뉴스를 찾지 못했습니다."
+        return f"'{label}' 관련 새로운 소식이 없습니다 (최근 {config.NEWS_MAX_AGE_DAYS}일 이내 신규 기사 없음 또는 이미 다룬 내용)."
 
     raw = "\n".join(
         f"- 제목: {a['title']} | 출처: {a['source']} | 날짜: {a['published']} | 링크: {a['link']}"

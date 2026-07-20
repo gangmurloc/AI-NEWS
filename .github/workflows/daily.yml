@@ -5,6 +5,9 @@ on:
     - cron: "0 22 * * *"   # UTC 22:00 = 한국시간 오전 7시
   workflow_dispatch:        # 수동 실행 버튼
 
+permissions:
+  contents: write   # sent_history.json 커밋을 위해 필요
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -19,3 +22,17 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      # 중복 전송 방지를 위해 이번에 보낸 링크 기록(sent_history.json)을 저장소에 커밋
+      - name: Save sent-history state
+        if: always()
+        run: |
+          if ! git diff --quiet -- sent_history.json; then
+            git config user.name "news-bot"
+            git config user.email "actions@github.com"
+            git add sent_history.json
+            git commit -m "chore: update sent history [skip ci]"
+            git push
+          else
+            echo "sent_history.json 변경 없음, 커밋 생략"
+          fi
