@@ -1,5 +1,5 @@
 """수집한 논문을 Gemini(무료 티어)로 읽기 쉽게 요약."""
-from gemini_client import generate
+from gemini_client import generate, TELEGRAM_FORMAT_RULES
 
 
 def summarize_papers(papers) -> str:
@@ -15,6 +15,8 @@ def summarize_papers(papers) -> str:
 - 한 줄 핵심
 - 왜 중요한지 1문장
 - 링크
+
+{TELEGRAM_FORMAT_RULES}
 
 논문 목록:
 {raw}"""

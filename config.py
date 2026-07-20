@@ -13,11 +13,21 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 # ----- 여기부터는 취향껏 수정 -----
 
 # 매일 받아볼 관심 주제 (원하는 만큼 추가/삭제)
+# label: 텔레그램에 표시될 한국어 제목 / query: 실제 뉴스 검색에 쓰이는 영어 검색어
 TOPICS = [
-    "LLM(대규모 언어모델) 최신 동향 및 신규 모델 출시",
-    "RAG(검색증강생성) 기술 및 프레임워크 소식",
-    "AI 에이전트 및 에이전틱 워크플로우",
+    {"label": "LLM(대규모 언어모델) 최신 동향 및 신규 모델 출시", "query": "LLM new model release"},
+    {"label": "RAG(검색증강생성) 기술 및 프레임워크 소식", "query": "retrieval-augmented generation RAG"},
+    {"label": "AI 에이전트 및 에이전틱 워크플로우", "query": "AI agent agentic workflow"},
 ]
+
+# 뉴스를 영어(해외) 매체 위주로 검색 (한국 매체의 낮은 품질의 PR성 기사를 줄이기 위함)
+NEWS_LANG = {"hl": "en-US", "gl": "US", "ceid": "US:en"}
+
+# 뉴스 검색 시 Google News RSS에서 가져올 항목 수 (주제별)
+NEWS_MAX_RESULTS = 8
+
+# 최근 며칠 이내 기사만 수집 (Google News의 when: 검색 연산자에 사용)
+NEWS_MAX_AGE_DAYS = 2
 
 # arXiv 논문 카테고리 (예: cs.AI, cs.LG, cs.CL, cs.CV, stat.ML)
 # cs.CL = 자연어처리(LLM/RAG 관련 논문이 주로 여기 올라옴)
@@ -31,10 +41,11 @@ ARXIV_KEYWORDS = [
     "RAG",
     "agent",
 ]
-ARXIV_MAX_RESULTS = 6
+ARXIV_MAX_RESULTS = 10
 
-# 뉴스 검색 시 Google News RSS에서 가져올 항목 수 (주제별)
-NEWS_MAX_RESULTS = 5
+# 최근 며칠 이내 제출된 논문만 선별
+# arXiv는 주말에는 논문을 발표하지 않으므로 2일보다 넉넉하게 잡아야 월요일에 결과가 비지 않음
+ARXIV_MAX_AGE_DAYS = 4
 
 
 def validate():

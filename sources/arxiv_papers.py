@@ -1,5 +1,6 @@
 """arXiv 공개 API로 최신 논문 수집 (API 키 불필요)."""
 import urllib.parse
+from datetime import datetime, timedelta, timezone
 import feedparser
 import config
 
@@ -19,8 +20,13 @@ def fetch_recent_papers():
     url = f"{ARXIV_API}?{urllib.parse.urlencode(params)}"
     feed = feedparser.parse(url)
 
+    cutoff = datetime.now(timezone.utc) - timedelta(days=config.ARXIV_MAX_AGE_DAYS)
+
     papers = []
     for entry in feed.entries:
+        published = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+        if published < cutoff:
+            continue
         papers.append({
             "title": entry.title.strip().replace("\n", " "),
             "summary": entry.summary.strip().replace("\n", " ")[:500],

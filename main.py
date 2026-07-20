@@ -13,9 +13,9 @@ def build_digest() -> str:
 
     # 1) 관심 주제별 웹 리서치
     for topic in config.TOPICS:
-        print(f"  - '{topic}' 검색 중...")
-        parts.append(f"\n━━━━━━━━━━━━\n🔎 *{topic}*\n")
-        parts.append(research_topic(topic))
+        print(f"  - '{topic['label']}' 검색 중...")
+        parts.append(f"\n━━━━━━━━━━━━\n🔎 *{topic['label']}*\n")
+        parts.append(research_topic(topic["query"], topic["label"]))
 
     # 2) 최신 논문
     print("  - 논문 수집 중...")
