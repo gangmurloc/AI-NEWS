@@ -1,8 +1,5 @@
 """수집한 논문을 Gemini(무료 티어)로 읽기 쉽게 요약."""
-from google import genai
-import config
-
-client = genai.Client(api_key=config.GEMINI_API_KEY)
+from gemini_client import generate
 
 
 def summarize_papers(papers) -> str:
@@ -22,10 +19,6 @@ def summarize_papers(papers) -> str:
 논문 목록:
 {raw}"""
     try:
-        resp = client.models.generate_content(
-            model=config.GEMINI_MODEL,
-            contents=prompt,
-        )
-        return resp.text
+        return generate(prompt)
     except Exception as e:
         return f"(논문 요약 실패: {e})\n\n원본 목록:\n{raw}"

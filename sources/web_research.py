@@ -1,10 +1,8 @@
 """Google News RSS(무료, 키 불필요)로 주제별 최신 뉴스를 수집하고 Gemini로 정리."""
 import urllib.parse
 import feedparser
-from google import genai
 import config
-
-client = genai.Client(api_key=config.GEMINI_API_KEY)
+from gemini_client import generate
 
 
 def _fetch_rss(topic: str):
@@ -44,10 +42,6 @@ def research_topic(topic: str) -> str:
 뉴스 목록:
 {raw}"""
     try:
-        resp = client.models.generate_content(
-            model=config.GEMINI_MODEL,
-            contents=prompt,
-        )
-        return resp.text
+        return generate(prompt)
     except Exception as e:
         return f"({topic} 정리 실패: {e})\n\n원본 목록:\n{raw}"
