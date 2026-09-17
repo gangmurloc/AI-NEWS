@@ -4,6 +4,10 @@ import time
 import feedparser
 import config
 
+# Reddit은 봇 티가 나는 User-Agent(예: "xxx-bot/1.0")는 429로 차단하고, 브라우저처럼 보이는
+# User-Agent에는 정상 응답한다. 다른 매체 RSS에도 문제없이 쓸 수 있어 전체에 공용으로 사용.
+_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
 
 def fetch_outlet_articles() -> list:
     cutoff_ts = time.time() - config.OUTLET_MAX_AGE_DAYS * 86400
@@ -11,7 +15,7 @@ def fetch_outlet_articles() -> list:
     articles = []
     for name, url in config.TRUSTED_RSS_FEEDS.items():
         try:
-            feed = feedparser.parse(url)
+            feed = feedparser.parse(url, request_headers={"User-Agent": _USER_AGENT})
         except Exception:
             continue
         for entry in feed.entries:

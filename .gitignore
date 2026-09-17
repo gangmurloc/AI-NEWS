@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 .claude/
+live_seen.json
+live_cursor.json
+live_monitor.log*

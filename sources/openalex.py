@@ -2,7 +2,7 @@
 import urllib.parse
 import urllib.request
 import json
-from datetime import date, timedelta
+from datetime import timedelta
 import config
 
 
@@ -18,7 +18,7 @@ def _reconstruct_abstract(inverted_index) -> str:
 
 
 def fetch_papers(query: str) -> list:
-    today = date.today()
+    today = config.today_kst()
     since = today - timedelta(days=config.PAPER_MAX_AGE_DAYS)
     params = {
         "search": query,

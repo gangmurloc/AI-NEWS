@@ -4,7 +4,7 @@
 import urllib.parse
 import urllib.request
 import json
-from datetime import date, timedelta
+from datetime import timedelta
 import config
 
 API = "https://api.semanticscholar.org/graph/v1/paper/search"
@@ -24,7 +24,7 @@ def fetch_papers(query: str) -> list:
     except Exception:
         return []
 
-    cutoff = (date.today() - timedelta(days=config.PAPER_MAX_AGE_DAYS)).isoformat()
+    cutoff = (config.today_kst() - timedelta(days=config.PAPER_MAX_AGE_DAYS)).isoformat()
 
     papers = []
     for p in data.get("data") or []:
