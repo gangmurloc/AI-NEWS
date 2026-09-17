@@ -12,6 +12,16 @@ import time
 import config
 import history
 from main import _referenced_items
+from opportunity_tracker import (
+    collect_deadline_reminders,
+    format_changes,
+    format_reminders,
+    load_state,
+    mark_reminders_sent,
+    refresh_due_records,
+    save_state,
+    upsert_items,
+)
 from sources.korea_opportunities import (
     discover_opportunities,
     enrich_opportunities,
@@ -125,8 +135,8 @@ def _collect_news(exclude_links: set[str]) -> list[dict]:
     return candidates
 
 
-def build_live_update() -> tuple[str, list[dict], list[dict]]:
-    """(전송문, 실제 전송 항목, 이번 확인에서 처리한 모든 항목)을 반환한다."""
+def build_live_update() -> tuple[str, list[dict], list[dict], list[dict]]:
+    """전송문, 실제 전송 항목, 처리 후보, 추적할 공고를 반환한다."""
     seen_links = set(_load_seen())
     opportunity_candidates = discover_opportunities(seen_links)
     news_candidates = _collect_news(seen_links)
@@ -135,7 +145,7 @@ def build_live_update() -> tuple[str, list[dict], list[dict]]:
     news_candidates = _after_cursor(news_candidates, cursor)
     processed = opportunity_candidates + news_candidates
     if not processed:
-        return "", [], []
+        return "", [], [], []
 
     opportunities = enrich_opportunities(
         opportunity_candidates[: config.OPPORTUNITY_MAX_CANDIDATES]
@@ -144,12 +154,14 @@ def build_live_update() -> tuple[str, list[dict], list[dict]]:
 
     sections = []
     sent_items = []
+    tracked_opportunities = []
     if opportunities:
         summary = summarize_opportunities(opportunities)
         selected = _referenced_items(opportunities, summary)
         if selected:
             sections.append(f"🏆 *새 국내 AI 대회·공모전·모집*\n\n{summary}")
             sent_items.extend(selected)
+            tracked_opportunities.extend(selected)
 
     if news:
         summary = summarize_core_news(news)
@@ -159,28 +171,50 @@ def build_live_update() -> tuple[str, list[dict], list[dict]]:
             sent_items.extend(selected)
 
     if not sections:
-        return "", [], processed
+        return "", [], processed, tracked_opportunities
 
     timestamp = datetime.now(config.KST).strftime("%Y-%m-%d %H:%M")
     message = f"📡 *AI 실시간 업데이트* — {timestamp}\n\n" + "\n\n━━━━━━━━━━━━\n\n".join(sections)
     unique_sent = list({item["link"]: item for item in sent_items}.values())
-    return message, unique_sent, processed
+    return message, unique_sent, processed, tracked_opportunities
 
 
 def check_once() -> bool:
-    message, sent_items, processed = build_live_update()
-    if not processed:
-        _save_cursor()
-        LOGGER.info("새 후보 없음")
-        return False
+    message, sent_items, processed, tracked_opportunities = build_live_update()
+    state = load_state()
+    changes, new_keys = upsert_items(state, tracked_opportunities)
+    changes.extend(refresh_due_records(state))
+    reminders = collect_deadline_reminders(state, new_keys)
+
+    alert_sections = []
+    if changes:
+        alert_sections.append(f"🔄 *공고 변경 감지*\n\n{format_changes(changes)}")
+    if reminders:
+        alert_sections.append(f"⏰ *마감 재알림*\n\n{format_reminders(reminders)}")
+    if alert_sections:
+        alerts = "\n\n━━━━━━━━━━━━\n\n".join(alert_sections)
+        if message:
+            message = f"{message}\n\n━━━━━━━━━━━━\n\n{alerts}"
+        else:
+            timestamp = datetime.now(config.KST).strftime("%Y-%m-%d %H:%M")
+            message = f"📡 *AI 기회정보 알림* — {timestamp}\n\n{alerts}"
 
     if message:
         send_message(message)
         history.mark_sent(sent_items)
-        LOGGER.info("텔레그램 전송 완료: %d건", len(sent_items))
-    else:
+        mark_reminders_sent(state, reminders)
+        LOGGER.info(
+            "텔레그램 전송 완료: 신규 %d건, 변경 %d건, 마감알림 %d건",
+            len(sent_items), len(changes), len(reminders),
+        )
+    elif processed:
         LOGGER.info("후보 %d건 확인, 전송 기준을 만족한 항목 없음", len(processed))
-    _save_seen(processed)
+    else:
+        LOGGER.info("새 후보 및 마감 알림 없음")
+
+    save_state(state)
+    if processed:
+        _save_seen(processed)
     _save_cursor()
     return bool(message)
 
@@ -193,6 +227,27 @@ def prime_seen() -> int:
     _save_cursor()
     LOGGER.info("실시간 기준선 갱신: %d건", len(candidates))
     return len(candidates)
+
+
+def bootstrap_opportunity_tracking() -> int:
+    """현재 검색되는 공고를 알림 없이 변경/마감 추적 목록에 등록한다."""
+    candidates = discover_opportunities(include_sent=True)
+    opportunities = enrich_opportunities(
+        candidates[: config.OPPORTUNITY_MAX_CANDIDATES]
+    )
+    unique_opportunities = []
+    seen_application_links = set()
+    for item in opportunities:
+        application_link = item.get("application_link") or item.get("link")
+        if application_link in seen_application_links:
+            continue
+        seen_application_links.add(application_link)
+        unique_opportunities.append(item)
+    state = {"records": {}}
+    upsert_items(state, unique_opportunities)
+    save_state(state)
+    LOGGER.info("공고 추적 기준선 등록: %d건", len(state["records"]))
+    return len(state["records"])
 
 
 def _acquire_single_instance_lock() -> socket.socket:
@@ -234,9 +289,16 @@ def main() -> None:
     parser.add_argument(
         "--prime", action="store_true", help="현재 후보를 전송 없이 확인 완료로 기록"
     )
+    parser.add_argument(
+        "--bootstrap-opportunities",
+        action="store_true",
+        help="현재 공고를 마감/변경 추적 목록에 등록",
+    )
     args = parser.parse_args()
     config.validate()
-    if args.prime:
+    if args.bootstrap_opportunities:
+        bootstrap_opportunity_tracking()
+    elif args.prime:
         prime_seen()
     elif args.once:
         check_once()

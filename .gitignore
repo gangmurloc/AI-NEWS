@@ -5,3 +5,4 @@ __pycache__/
 live_seen.json
 live_cursor.json
 live_monitor.log*
+opportunity_state.json

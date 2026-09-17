@@ -76,6 +76,13 @@ ARXIV_KEYWORDS = ["large language model", "LLM", "RAG", ...]  # 초록에 포함
 `live_monitor.py`는 기본 1분마다 새 정보를 확인하고, 새 후보가 있을 때만 LLM 요약과 텔레그램 전송을
 실행합니다. PC가 켜져 있는 동안 계속 동작합니다.
 
+추적 중인 공고는 다음 기능도 자동으로 동작합니다.
+
+- 마감 7일·3일·1일 전과 당일에 준비 체크리스트를 포함해 재알림
+- 30분마다 원문을 다시 읽어 마감일, 신청 링크, 제출 준비 항목 변경 감지
+- 기사 링크보다 공식 신청·접수 링크를 우선 탐색
+- 원문에 명시된 신청서, 동의서, 발표자료, 소스 코드 등을 준비 체크리스트로 생성
+
 ```bash
 python live_monitor.py
 ```
@@ -86,6 +93,9 @@ python live_monitor.py
 
 기존 검색 결과를 발송하지 않고 지금 이후에 올라오는 항목만 받고 싶다면 최초 실행 전에
 `python live_monitor.py --prime`으로 현재 후보를 기준선에 등록합니다.
+
+현재 검색되는 공고를 재발송 없이 마감·변경 추적 목록에 등록하려면
+`python live_monitor.py --bootstrap-opportunities`를 실행합니다.
 
 ## 전체 브리핑 수동 실행
 
@@ -114,6 +124,7 @@ news_bot/
 ├── config.py                 # 설정 + 관심 주제 (+ KST 날짜 헬퍼)
 ├── main.py                   # ▶ 실행 파일
 ├── live_monitor.py           # 1분 간격 실시간 확인 및 새 항목 전송
+├── opportunity_tracker.py    # 공고 변경 감지와 마감 재알림 상태 관리
 ├── run_live.bat              # Windows 실시간 모니터 실행
 ├── watchdog.py               # 수동 상태 점검
 ├── get_chat_id.py            # chat_id 확인 도우미
