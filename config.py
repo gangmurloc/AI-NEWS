@@ -86,6 +86,9 @@ OPPORTUNITY_BODY_MAX_CHARS = 3000
 OPPORTUNITY_REFRESH_MINUTES = 30
 OPPORTUNITY_REFRESH_BATCH_SIZE = 5
 OPPORTUNITY_REMINDER_DAYS = [7, 3, 1, 0]
+# 변경 알림은 짧은 문구·날짜·링크 수정이 아니라 본문을 사실상 다시 쓴 경우에만 보낸다.
+OPPORTUNITY_MAJOR_CHANGE_MAX_SIMILARITY = 0.55
+OPPORTUNITY_MAJOR_CHANGE_MIN_CHARS = 180
 
 # 뉴스를 영어(해외) 매체 위주로 검색 (한국 매체의 낮은 품질의 PR성 기사를 줄이기 위함)
 NEWS_LANG = {"hl": "en-US", "gl": "US", "ceid": "US:en"}

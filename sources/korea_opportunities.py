@@ -36,6 +36,43 @@ _STRONG_LINK_RE = re.compile(
     r"신청\s*하기|접수\s*하기|참가\s*신청|온라인\s*접수|지원\s*하기|바로\s*가기"
 )
 _GENERAL_LINK_RE = re.compile(r"신청|접수|참가|지원|공고|홈페이지|대회|공모")
+_NATIONWIDE_ELIGIBILITY_RE = re.compile(
+    r"전국\s*(?:민|누구나|대상|대학생|청년|기업)|"
+    r"전국에서\s*(?:참가|신청|지원)|"
+    r"지역\s*제한\s*(?:없음|없|없이)|거주지\s*제한\s*(?:없음|없|없이)"
+)
+_OUTSIDE_CAPITAL_REGION_RE = re.compile(
+    r"부산(?:광역시)?|대구(?:광역시)?|인천(?:광역시)?|광주광역시|광주(?!시)|"
+    r"대전(?:광역시)?|울산(?:광역시)?|세종(?:특별자치시)?|"
+    r"강원(?:특별자치도|도)?|충청북도|충북|충청남도|충남|"
+    r"전북(?:특별자치도)?|전라북도|전남|전라남도|"
+    r"경북|경상북도|경남|경상남도|제주(?:특별자치도|도)?"
+)
+_LOCAL_ELIGIBILITY_RE = re.compile(
+    r"거주|주민|시민|도민|군민|구민|지역민|소재|재학|재직|근무|"
+    r"사업장|본사|주소지|관내|지역\s*내|지역\s*소재|지역\s*거주|"
+    r"지역\s*(?:청년|학생|대학생|기업|창업자)"
+)
+_LOCALITY_ELIGIBILITY_RE = re.compile(
+    r"(?P<locality>[가-힣]{2,7}(?:시|군|구))\s*"
+    r"(?:민|주민|거주|소재|재학|재직|근무|사업장|본사|주소지)"
+)
+_REGION_GROUP_RE = re.compile(
+    r"^\s*(?:지역\s*)?(?:청년|학생|대학생|기업|창업기업|창업자|예비창업자)"
+    r"\s*(?:만|대상|한정)"
+)
+_SEOUL_GYEONGGI_LOCALITIES = {
+    "서울시", "서울특별시", "경기도",
+    "수원시", "성남시", "의정부시", "안양시", "부천시", "광명시", "평택시",
+    "동두천시", "안산시", "고양시", "과천시", "구리시", "남양주시", "오산시",
+    "시흥시", "군포시", "의왕시", "하남시", "용인시", "파주시", "이천시",
+    "안성시", "김포시", "화성시", "광주시", "양주시", "포천시", "여주시",
+    "연천군", "가평군", "양평군",
+    "종로구", "중구", "용산구", "성동구", "광진구", "동대문구", "중랑구",
+    "성북구", "강북구", "도봉구", "노원구", "은평구", "서대문구", "마포구",
+    "양천구", "강서구", "구로구", "금천구", "영등포구", "동작구", "관악구",
+    "서초구", "강남구", "송파구", "강동구",
+}
 _KNOWN_APPLICATION_HOSTS = {
     "dacon.io",
     "aihub.or.kr",
@@ -46,6 +83,26 @@ _KNOWN_APPLICATION_HOSTS = {
     "docs.google.com",
     "naver.me",
 }
+
+
+def is_excluded_local_opportunity(title: str, body: str = "") -> bool:
+    """서울·경기 밖 특정 지역 사람에게만 열린 기회정보인지 판별한다."""
+    text = _SPACE_RE.sub(" ", f"{title or ''} {body or ''}").strip()
+    if not text or _NATIONWIDE_ELIGIBILITY_RE.search(text):
+        return False
+
+    for region_match in _OUTSIDE_CAPITAL_REGION_RE.finditer(text):
+        nearby = text[
+            max(0, region_match.start() - 70): min(len(text), region_match.end() + 100)
+        ]
+        after_region = text[region_match.end(): min(len(text), region_match.end() + 45)]
+        if _LOCAL_ELIGIBILITY_RE.search(nearby) or _REGION_GROUP_RE.search(after_region):
+            return True
+
+    for match in _LOCALITY_ELIGIBILITY_RE.finditer(text):
+        if match.group("locality") not in _SEOUL_GYEONGGI_LOCALITIES:
+            return True
+    return False
 
 
 def _unwrap_bing_link(link: str) -> str:
@@ -84,6 +141,8 @@ def _fetch_search_results(topic: dict) -> list[dict]:
             snippet = _plain_text(entry.get("summary", entry.get("description", "")))
             search_text = f"{title} {snippet}"
             if not _AI_RE.search(search_text) or not _OPPORTUNITY_RE.search(search_text):
+                continue
+            if is_excluded_local_opportunity(title, snippet):
                 continue
 
             source = ""
@@ -294,8 +353,10 @@ def discover_opportunities(
 def enrich_opportunities(items: list[dict]) -> list[dict]:
     """선별된 기회정보 후보에 원문과 신청 링크를 병렬로 보강한다."""
 
-    def enrich(item: dict) -> dict:
+    def enrich(item: dict) -> dict | None:
         body, application_links = extract_page_details(item["link"])
+        if is_excluded_local_opportunity(item.get("title", ""), body or item.get("snippet", "")):
+            return None
         item["body"] = body
         item["application_links"] = application_links
         item.update(build_opportunity_record(item))
@@ -304,7 +365,7 @@ def enrich_opportunities(items: list[dict]) -> list[dict]:
     if not items:
         return []
     with ThreadPoolExecutor(max_workers=min(6, len(items))) as executor:
-        return list(executor.map(enrich, items))
+        return [item for item in executor.map(enrich, items) if item is not None]
 
 
 def fetch_opportunities(exclude_links: set[str] = frozenset()) -> list[dict]:
@@ -341,6 +402,8 @@ def summarize_opportunities(items: list[dict]) -> str:
 선별 규칙:
 - 접수 중이거나 접수 예정인 정보를 우선하고, 명백히 마감된 항목은 제외
 - 기관 내부 직원만 참가하는 행사, 수상 결과 발표, 개최 후기는 제외
+- 서울·경기 이외 지역 거주자·재학생·소재 기업 등 해당 지역 사람만 참가할 수 있는 행사는 제외
+- 지방에서 열리더라도 전국 누구나 참가할 수 있다고 명시된 행사는 제외하지 않음
 - 단순 뉴스나 제품 홍보처럼 참가 신청을 할 수 없는 글은 제외
 - 같은 행사를 다룬 글은 하나만 남기고, 제공된 본문 내 신청 링크 후보가 적절하면 그 링크를 우선
 - 후보 목록에 제공되지 않은 URL을 새로 만들거나 추측하지 말 것

@@ -6,7 +6,11 @@ from pathlib import Path
 import re
 
 import config
-from sources.korea_opportunities import build_opportunity_record, extract_page_details
+from sources.korea_opportunities import (
+    build_opportunity_record,
+    extract_page_details,
+    is_excluded_local_opportunity,
+)
 
 
 STATE_FILE = Path(__file__).parent / "opportunity_state.json"
@@ -47,6 +51,10 @@ def _should_track(record: dict) -> bool:
     searchable = f"{record.get('title', '')} {record.get('content_text', '')[:500]}"
     if re.search(r"직원\s*대상|임직원|사내\s*(?:대회|공모)", searchable):
         return False
+    if is_excluded_local_opportunity(
+        record.get("title", ""), record.get("content_text", "")
+    ):
+        return False
     deadline = record.get("deadline")
     if deadline:
         try:
@@ -71,7 +79,22 @@ def _initial_reminder_tokens(record: dict) -> list[str]:
 
 
 def _describe_changes(old: dict, new: dict) -> list[str]:
-    changes = []
+    old_text = re.sub(r"\s+", " ", old.get("content_text", "")).strip()
+    new_text = re.sub(r"\s+", " ", new.get("content_text", "")).strip()
+    if old.get("content_hash") == new.get("content_hash"):
+        return []
+    if min(len(old_text), len(new_text)) < config.OPPORTUNITY_MAJOR_CHANGE_MIN_CHARS:
+        return []
+
+    similarity = SequenceMatcher(None, old_text, new_text, autojunk=False).ratio()
+    changed_chars = int(max(len(old_text), len(new_text)) * (1 - similarity))
+    if (
+        similarity >= config.OPPORTUNITY_MAJOR_CHANGE_MAX_SIMILARITY
+        or changed_chars < config.OPPORTUNITY_MAJOR_CHANGE_MIN_CHARS
+    ):
+        return []
+
+    changes = [f"공고 핵심 내용이 대폭 변경됨 (본문 유사도 {similarity:.0%})"]
     for field, label in TRACKED_FIELDS.items():
         old_value = old.get(field) or "확인 필요"
         new_value = new.get(field) or "확인 필요"
@@ -80,13 +103,6 @@ def _describe_changes(old: dict, new: dict) -> list[str]:
                 old_value = ", ".join(old_value)
                 new_value = ", ".join(new_value)
             changes.append(f"{label}: {old_value} → {new_value}")
-
-    old_text = old.get("content_text", "")
-    new_text = new.get("content_text", "")
-    if old.get("content_hash") != new.get("content_hash") and old_text and new_text:
-        similarity = SequenceMatcher(None, old_text, new_text).ratio()
-        if similarity < 0.97 and not changes:
-            changes.append("공고 본문 내용이 수정됨")
     return changes
 
 
@@ -97,9 +113,11 @@ def upsert_items(state: dict, items: list[dict]) -> tuple[list[dict], set[str]]:
     now = _now_iso()
     for item in items:
         record = build_opportunity_record(item)
-        if not _should_track(record):
-            continue
         key = _record_key(record)
+        if not _should_track(record):
+            if key:
+                state["records"].pop(key, None)
+            continue
         if not key:
             continue
         previous = state["records"].get(key)
@@ -122,7 +140,10 @@ def refresh_due_records(state: dict) -> list[dict]:
     """일정 시간이 지난 추적 공고를 다시 읽고 의미 있는 변경만 반환한다."""
     now = datetime.now(config.KST)
     due = []
-    for key, record in state["records"].items():
+    for key, record in list(state["records"].items()):
+        if not _should_track(record):
+            state["records"].pop(key, None)
+            continue
         try:
             checked = datetime.fromisoformat(record.get("last_checked_at", ""))
         except (TypeError, ValueError):
@@ -145,6 +166,9 @@ def refresh_due_records(state: dict) -> list[dict]:
             "application_links": application_links or [previous.get("application_link", "")],
         }
         current = build_opportunity_record(item)
+        if not _should_track(current):
+            state["records"].pop(key, None)
+            continue
         differences = _describe_changes(previous, current)
         if differences:
             changes.append({"title": current["title"], "link": current["application_link"], "differences": differences})
@@ -159,7 +183,7 @@ def collect_deadline_reminders(state: dict, skip_keys: set[str] = frozenset()) -
     today = config.today_kst()
     reminders = []
     for key, record in state["records"].items():
-        if key in skip_keys or not record.get("deadline"):
+        if key in skip_keys or not record.get("deadline") or not _should_track(record):
             continue
         try:
             deadline = datetime.strptime(record["deadline"], "%Y-%m-%d").date()
